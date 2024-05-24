@@ -1,0 +1,126 @@
+# Pipeline de construction test et packaging du projet Ucf.ConcentrateurDsn.WebApi
+
+# On déclenche le pipeline à chaque commit sur une des branches ci-dessous
+trigger:
+  branches:
+    include:
+      - main
+  # On déclenche uniquement quand la modification concerne un projet lié à la WebApi
+  paths:
+    exclude:
+      - '*.md'
+
+pool: 'vm_unraid'
+# vmImage: 'windows-latest'
+
+# Variables locales
+variables:
+  # Configuration dans laquelle la solution sera build
+  buildConfiguration: 'Release'
+  # Version du SDK dotnet Core à utiliser
+  dotnetSdkVersion: '8.0.x'
+  # Solution utilisée pour build et test, le fichier doit être à la racine du repository
+  solutionToBuild: 'calendarr_web_api.sln'
+  # Nom du dossier ou se trouve le DockerFile pour le service
+  folderappsettings: 'calendarr_web_api'
+  # Le nom de l'image docker pour le service
+  imageServiceName: 'calendarr_web_api-image'
+  folderServiceDockerFile: 'calendarr_web_api'
+  # Le port http a ouvrir
+  httpport: '5557'
+  # Le port http a ouvrir
+  httpportcontainer: '8080'
+  # The container registry used to push img
+  containerRegistry: 'local_registry' # registry define in service collection (ip of the azurevm and 5000 as port that come from the registry container running in the vm)
+
+stages:
+
+  - stage: Build
+    displayName: Construction et Test
+
+    jobs:
+      - job: Build_Test_Publish
+        displayName: Build, Test et Publish
+        timeoutInMinutes: 10 # how long to run the job before automatically cancelling
+        cancelTimeoutInMinutes: 2 # how much time to give 'run always even if cancelled tasks' before stopping them
+
+        steps:
+          # On s'assure d'utiliser la bonne version de dotnet CLI
+          - task: UseDotNet@2
+            displayName: Use dotnet $(dotnetSdkVersion)
+            inputs:
+              version: $(dotnetSdkVersion)
+
+          - task: PowerShell@2
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Define source and target paths
+                $sourcePath = "$env:HOME/share/home_service/calendarr_web_api/*.json"
+                $targetPath = "$(folderappsettings)/"
+                # Create the folder
+                New-Item -Path $targetPath -ItemType Directory -Force
+                # Copy the file
+                Copy-Item -Path $sourcePath -Destination $targetPath -Force
+         
+          # On restore les paquets nuget de la solution
+          - task: DotNetCoreCLI@2
+            displayName: Restore
+            inputs:
+              command: 'restore'
+              projects: '$(solutionToBuild)'
+              verbosityRestore: 'Detailed'
+
+          # On restore les paquets nuget de la solution
+          - task: DotNetCoreCLI@2
+            displayName: Build
+            inputs:
+              command: 'build'
+              projects: '$(solutionToBuild)'
+              arguments: '--configuration $(buildConfiguration) --verbosity normal --no-restore'
+
+          # On teste la solution
+          #- task: DotNetCoreCLI@2
+          #  displayName: Test
+          #  inputs:
+          #    command: 'test'
+          #    projects: '$(solutionToBuild)'
+          #    arguments: '--configuration $(buildConfiguration) --collect "Code coverage" --no-build --verbosity normal'
+          #    testRunTitle: 'Run Tests'
+          - task: Docker@2
+            displayName: Login to ACR
+            inputs:
+              command: login
+              containerRegistry: $(containerRegistry)
+          
+          - task: Docker@2
+            displayName: Build an service image
+            inputs:
+              repository: $(imageServiceName)
+              command: buildAndPush
+              tags: 'latest'
+              containerRegistry: $(containerRegistry)
+              buildContext: $(Build.Repository.LocalPath)
+              Dockerfile: $(folderServiceDockerFile)/Dockerfile
+          
+          - task: Docker@2
+            displayName: stop service image
+            continueOnError: true
+            inputs:
+              command: stop
+              container: $(imageServiceName)
+          - script: |
+              docker rm $(imageServiceName) 
+            displayName: 'rm service container'
+            continueOnError: true
+          
+              
+          - script: |
+              docker run -t -d --name $(imageServiceName) -p $(httpport):$(httpportcontainer) localhost:5000/$(imageServiceName) 
+            displayName: 'Run Docker'
+
+          - task: Docker@2
+            displayName: Logout of ACR
+            inputs:
+              command: logout
+              containerRegistry: $(containerRegistry)
