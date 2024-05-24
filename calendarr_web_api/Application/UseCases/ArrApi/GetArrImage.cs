@@ -3,13 +3,13 @@ using calendarr_web_api.Application.InfrastructureInterfaces.WebRepository;
 
 namespace calendarr_web_api.Application.UseCases.ArrApi;
 
-public class GetReadarrImage : IGetReadarrImage
+public class GetArrImage : IGetArrImage
 {
     private readonly IGetApisService _getApisService;
     private readonly IArrExternalServiceRepository _arrExternalServiceRepository;
     private readonly string _baseUrl = "api/v1";
     
-    public GetReadarrImage(IArrExternalServiceRepository arrExternalServiceRepository, IGetApisService getApisService)
+    public GetArrImage(IArrExternalServiceRepository arrExternalServiceRepository, IGetApisService getApisService)
     {
         _arrExternalServiceRepository = arrExternalServiceRepository;
         _getApisService = getApisService;
@@ -37,8 +37,7 @@ public class GetReadarrImage : IGetReadarrImage
         return null;
     }
 }
-
-public interface IGetReadarrImage
+public interface IGetArrImage
 {
     public Task<byte[]?> Get(string apiName, string urlImage, CancellationToken ct);
 }

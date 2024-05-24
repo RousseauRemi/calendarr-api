@@ -287,9 +287,45 @@ app.MapGet("/jellyseerEntity/{name}/Users/{userId}/requests",
     .WithOpenApi();
 
 
-app.MapGet("/readarr-image",
+app.MapGet("/remote-image",
         async (
-            [FromServices] IGetReadarrImage useCase,
+            [FromServices] IGetRemoteImage useCase,
+            string imageUrl,
+            [FromServices] IMapper mapper,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(imageUrl))
+            {
+                return Results.BadRequest("URL is required.");
+            }
+
+            try
+            {
+                var imageBytes =  await useCase.Get(imageUrl,  ct);
+                var contentType = "image/jpeg"; // You can determine the actual content type if needed
+
+                return Results.File(imageBytes, contentType);
+            }
+            catch (OperationCanceledException)
+            {
+                return Results.StatusCode(499); // Client Closed Request
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+            catch (HttpRequestException ex)
+            {
+                return Results.StatusCode(500);
+            }
+        })
+    .WithName("GetRemoteImage")
+    .WithOpenApi();
+
+
+app.MapGet("/arr-image",
+        async (
+            [FromServices] IGetArrImage useCase,
             string apiName,
             string imageUrl,
             [FromServices] IMapper mapper,
@@ -320,7 +356,7 @@ app.MapGet("/readarr-image",
                 return Results.StatusCode(500);
             }
         })
-    .WithName("GetReadarrImage")
+    .WithName("GetArrImage")
     .WithOpenApi();
 
 app.Run();

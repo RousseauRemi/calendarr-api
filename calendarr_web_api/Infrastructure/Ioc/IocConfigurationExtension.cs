@@ -55,7 +55,8 @@ public static class IocConfigurationExtension
             .AddTransient<ITestJellyseerUseCase, TestJellyseerUseCase>()
             .AddTransient<IGetJellyseerUsersUseCase, GetJellyseerUsersUseCase>()
             .AddTransient<IGetJellyseerRequestUseCase, GetJellyseerRequestUseCase>()
-            .AddTransient<IGetReadarrImage, GetReadarrImage>()
+            .AddTransient<IGetArrImage, GetArrImage>()
+            .AddTransient<IGetRemoteImage, GetRemoteImage>()
             ;
         return services;
     }
